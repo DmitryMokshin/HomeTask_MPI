@@ -6,11 +6,12 @@ use :: mpi
     implicit none
       real(8),dimension(:,:), intent(in) :: A
       integer(4),intent(out) :: x1,y1,x2,y2
-      integer(4) :: n,left,right,up,down,m,tr,minpos,i,k
+      integer(4) :: n,left,right,up,down,m,tr,minpos,i
       integer(4) :: mpiErr, mpiSize, mpiRank
       real(8),allocatable :: curcol(:),B(:,:)
-      real(8) :: maxsum
-      real(8) :: cursum,ressum,resmaxsum
+      real(8),allocatable :: local_maxsum(:),res_maxsum(:)
+      integer(4) :: local_coord(4)
+      real(8) :: cursum,ressum,maxsum
       logical :: transpos
 
        call mpi_init(mpiErr)
@@ -34,7 +35,8 @@ use :: mpi
         endif
 
        allocate(curcol(m))
-       x1=1;x2=1;y1=1;y2=1; maxsum=B(1,1)
+       local_coord=1; maxsum=B(1,1)
+
         do left=1+mpiRank,n,mpiSize
 
            curcol=B(:,left)
@@ -66,14 +68,23 @@ use :: mpi
                
           if (cursum > maxsum) then
          maxsum=cursum
-         x1=up
-         x2=down
-         y1=left
-         y2=right
+         local_coord(1)=up
+         local_coord(2)=down
+         local_coord(3)=left
+         local_coord(4)=right
          end if
              enddo
 
         enddo
+       allocate(local_maxsum(0:mpiSize-1),res_maxsum(0:mpiSize-1))
+       local_maxsum(mpiRank)=maxsum
+       call mpi_allreduce(local_maxsum,res_maxsum,mpiSize,mpi_real8,MPI_MAX,MPI_COMM_WORLD,mpiErr)
+       call mpi_bcast(local_coord,4,mpi_integer,maxloc(res_maxsum,dim=1)-1,MPI_COMM_WORLD,mpiErr)
+       x1=local_coord(1)
+       x2=local_coord(2)
+       y1=local_coord(3)
+       y2=local_coord(4)       
+       deallocate(local_maxsum,res_maxsum)
        deallocate(curcol)
 
         if (transpos) then
