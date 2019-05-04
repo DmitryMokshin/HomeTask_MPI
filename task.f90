@@ -9,8 +9,8 @@ use :: mpi
    integer(4) :: n,left,right,up,down,m,transit,min_pos,i
    integer(4) :: mpiErr,mpiSize,mpiRank,local_coord(4)
    real(8),allocatable :: current_column(:),B(:,:)
-   real(8),allocatable :: local_max_sum_vector(:),global_max_sum(:)
-   real(8) :: current_sum,inter_sum,local_max_sum
+   integer(4),allocatable :: local_thread_vector(:),global_thread_vector(:)
+   real(8) :: current_sum,inter_sum,local_max_sum,global_max_sum
    logical :: transpos
     
    call mpi_comm_size(MPI_COMM_WORLD,mpiSize,mpiErr)
@@ -69,13 +69,17 @@ use :: mpi
        enddo
    enddo
 
-   allocate(local_max_sum_vector(0:mpiSize-1),global_max_sum(0:mpiSize-1))
+   allocate(local_thread_vector(0:mpiSize-1),global_thread_vector(0:mpiSize-1))
 
-   local_max_sum_vector(mpiRank)=local_max_sum
-   call mpi_allreduce(local_max_sum_vector,global_max_sum,mpiSize,mpi_real8,MPI_MAX,MPI_COMM_WORLD,mpiErr)
-   call mpi_bcast(local_coord,4,mpi_integer,maxloc(global_max_sum,dim=1)-1,MPI_COMM_WORLD,mpiErr)
-
-   deallocate(local_max_sum_vector,global_max_sum)
+   call mpi_allreduce(local_max_sum,global_max_sum,1,mpi_real8,MPI_MAX,MPI_COMM_WORLD,mpiErr)
+   local_thread_vector=-1
+   if (global_max_sum==local_max_sum) then
+       local_thread_vector(mpiRank)=mpiRank
+   end if
+   call mpi_allreduce(local_thread_vector,global_thread_vector,mpiSize,mpi_integer,MPI_MAX,MPI_COMM_WORLD,mpiErr)
+   call mpi_bcast(local_coord,4,mpi_integer,maxval(global_thread_vector),MPI_COMM_WORLD,mpiErr)
+   
+   deallocate(local_thread_vector,global_thread_vector)
    deallocate(current_column)
 
    x1=local_coord(1)
